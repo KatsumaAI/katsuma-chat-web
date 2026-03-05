@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat with Katsuma</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐰</text></svg>">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-tertiary: #1a1a24;
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --accent: #6366f1;
+      --accent-glow: #818cf8;
+      --user-msg: #2563eb;
+      --bot-msg: #1e1e2e;
+      --border: rgba(255,255,255,0.08);
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    
+    .status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .message {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      line-height: 1.5;
+      animation: slideIn 0.2s ease;
+    }
+    
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .message.user {
+      align-self: flex-end;
+      background: var(--user-msg);
+      border-bottom-right-radius: 4px;
+    }
+    
+    .message.bot {
+      align-self: flex-start;
+      background: var(--bot-msg);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+    
+    .message .meta {
+      font-size: 0.7rem;
+      opacity: 0.6;
+      margin-top: 4px;
+    }
+    
+    .typing {
+      display: none;
+      padding: 12px 16px;
+      background: var(--bot-msg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      border-bottom-left-radius: 4px;
+      align-self: flex-start;
+    }
+    
+    .typing.active {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .typing span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      animation: bounce 1.4s infinite;
+    }
+    
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+    
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-8px); }
+    }
+    
+    #input-area {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      gap: 12px;
+    }
+    
+    #message-input {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: var(--text-primary);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    #message-input:focus {
+      border-color: var(--accent);
+    }
+    
+    #send-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    #send-btn:hover {
+      background: var(--accent-glow);
+    }
+    
+    #send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-secondary);
+    }
+    
+    .empty-state h2 {
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+    
+    .clear-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      margin-left: 12px;
+    }
+    
+    .clear-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="avatar">🐰</div>
+    <h1>Katsuma</h1>
+    <span class="status">
+      <span class="status-dot"></span>
+      Online
+    </span>
+    <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+  </header>
+  
+  <div id="chat">
+    <div class="empty-state">
+      <h2>Start a conversation</h2>
+      <p>Send a message to chat with Katsuma</p>
+    </div>
+  </div>
+  
+  <div class="typing" id="typing">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+  
+  <form id="input-area">
+    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+    <button type="submit" id="send-btn">Send</button>
+  </form>
+  
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const typing = document.getElementById('typing');
+    
+    let hasMessages = false;
+    
+    // Load conversation on connect
+    socket.on('loadConversation', (messages) => {
+      if (messages && messages.length > 0) {
+        hasMessages = true;
+        chat.innerHTML = '';
+        messages.forEach(msg => appendMessage(msg));
+      }
+    });
+    
+    // Handle new messages
+    socket.on('message', (msg) => {
+      appendMessage(msg);
+      hideTyping();
+    });
+    
+    // Typing indicator
+    socket.on('typing', ({ isTyping }) => {
+      if (isTyping) {
+        showTyping();
+      } else {
+        hideTyping();
+      }
+    });
+    
+    // Memory cleared
+    socket.on('memoryCleared', () => {
+      chat.innerHTML = `
+        <div class="empty-state">
+          <h2>Chat cleared</h2>
+          <p>Start a new conversation</p>
+        </div>
+      `;
+      hasMessages = false;
+    });
+    
+    // Send message
+    function sendMessage() {
+      const content = input.value.trim();
+      if (!content) return;
+      
+      sendBtn.disabled = true;
+      input.value = '';
+      
+      socket.emit('chatMessage', { content });
+      sendBtn.disabled = false;
+      input.focus();
+    }
+    
+    // Append message to chat
+    function appendMessage(msg) {
+      if (!hasMessages) {
+        chat.innerHTML = '';
+        hasMessages = true;
+      }
+      
+      const div = document.createElement('div');
+      div.className = `message ${msg.type}`;
+      div.textContent = msg.content;
+      
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = new Date(msg.timestamp).toLocaleTimeString();
+      div.appendChild(meta);
+      
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    
+    function showTyping() {
+      chat.appendChild(typing);
+      typing.classList.add('active');
+      chat.scrollTop = chat.scrollHeight;
+    }
+    
+    function hideTyping() {
+      typing.classList.remove('active');
+    }
+    
+    function clearChat() {
+      if (confirm('Clear all chat history?')) {
+        fetch('/api/clear', { method: 'POST' });
+      }
+    }
+    
+    // Event listeners
+    document.getElementById('input-area').addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendMessage();
+    });
+    
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+    
+    // Focus input on load
+    input.focus();
+  </script>
+</body>
+</html>
