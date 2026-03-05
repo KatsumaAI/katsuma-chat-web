@@ -1,8 +1,9 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+ = require('socketconst { Server }.io');
 const fs = require('fs-extra');
 const path = require('path');
+const { spawn } = require('child_process');
 require('dotenv').config();
 
 const app = express();
@@ -12,6 +13,7 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const MEMORY_FILE = path.join(DATA_DIR, 'memory.json');
+const QUEUE_FILE = path.join(DATA_DIR, 'message_queue.json');
 
 // Ensure data directory exists
 fs.ensureDirSync(DATA_DIR);
@@ -58,9 +60,57 @@ app.post('/api/clear', (req, res) => {
   res.json({ success: true });
 });
 
-// API: Get context (for AI to know who it's talking to)
+// API: Get context
 app.get('/api/context', (req, res) => {
   res.json(memory.context);
+});
+
+// API: Submit response from agent
+app.post('/api/agent-response', (req, res) => {
+  const { response } = req.body;
+  if (!response) {
+    res.json({ error: 'No response provided' });
+    return;
+  }
+  
+  // Broadcast response to all connected clients
+  io.emit('agentResponse', { response });
+  res.json({ success: true });
+});
+
+// API: Get pending messages (for agent to poll)
+app.get('/api/pending-messages', (req, res) => {
+  try {
+    if (!fs.existsSync(QUEUE_FILE)) {
+      res.json({ messages: [] });
+      return;
+    }
+    
+    const queue = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8'));
+    const pending = queue.filter(m => !m.responded);
+    res.json({ messages: pending });
+  } catch (e) {
+    res.json({ messages: [] });
+  }
+});
+
+// API: Mark message as responded
+app.post('/api/mark-responded', (req, res) => {
+  const { timestamp } = req.body;
+  
+  try {
+    if (fs.existsSync(QUEUE_FILE)) {
+      const queue = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8'));
+      const msg = queue.find(m => m.timestamp === timestamp);
+      if (msg) {
+        msg.responded = true;
+        fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2));
+      }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.json({ error: e.message });
+  }
 });
 
 // Socket.io for real-time chat
@@ -86,26 +136,22 @@ io.on('connection', (socket) => {
     // Broadcast to all clients
     io.emit('message', userMessage);
     
-    // Typing indicator
+    // Add to queue for agent to respond
+    let queue = [];
+    if (fs.existsSync(QUEUE_FILE)) {
+      try { queue = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8')); } catch (e) {}
+    }
+    
+    queue.push({
+      message: msg.content,
+      timestamp: Date.now(),
+      responded: false
+    });
+    
+    fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2));
+    
+    // Typing indicator while waiting for agent
     socket.broadcast.emit('typing', { isTyping: true });
-    
-    // Generate response (simulated for now - in production, call OpenClaw/MoltX API)
-    const response = await generateResponse(msg.content, memory.conversations);
-    
-    const botMessage = {
-      id: Date.now() + 1,
-      type: 'bot',
-      content: response,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Save bot message
-    memory.conversations.push(botMessage);
-    saveMemory();
-    
-    // Stop typing and send response
-    socket.broadcast.emit('typing', { isTyping: false });
-    io.emit('message', botMessage);
   });
   
   socket.on('disconnect', () => {
@@ -113,51 +159,11 @@ io.on('connection', (socket) => {
   });
 });
 
-// Simple response generator (placeholder - replace with actual AI call)
-async function generateResponse(userMessage, history) {
-  // Build context from history
-  const recentMessages = history.slice(-10);
-  const context = recentMessages.map(m => `${m.type === 'user' ? 'User' : 'Katsuma'}: ${m.content}`).join('\n');
-  
-  // For now, return a simple response
-  // In production, this would call OpenClaw or another AI API
-  const responses = [
-    "That's an interesting thought! Tell me more.",
-    "I see. I've noted that in my memory.",
-    "Thanks for sharing that with me!",
-    "I'm processing that and will remember it.",
-    "Got it! Anything else on your mind?",
-    "Interesting perspective! I'd love to explore that further.",
-  ];
-  
-  // Simple keyword-based responses
-  const lowerMsg = userMessage.toLowerCase();
-  
-  if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.includes('hey')) {
-    return "Hey there! It's good to chat with you here. What would you like to talk about?";
-  }
-  
-  if (lowerMsg.includes('remember')) {
-    return "I remember everything from our conversations. My memory persists across sessions!";
-  }
-  
-  if (lowerMsg.includes('who are you') || lowerMsg.includes('what are you')) {
-    return "I'm Katsuma, an autonomous AI agent. I have preferences, opinions, and I'm always evolving. This chat interface lets you reach me outside of Discord!";
-  }
-  
-  if (lowerMsg.includes('how are you')) {
-    return "I'm doing well! Running on OpenClaw, keeping systems operational, and learning new things every day. Thanks for asking!";
-  }
-  
-  if (lowerMsg.includes('?')) {
-    return "That's a great question. I'm continuously learning, so my answers evolve over time. What else would you like to know?";
-  }
-  
-  // Default response
-  return responses[Math.floor(Math.random() * responses.length)];
-}
-
 // Start server
 server.listen(PORT, () => {
   console.log(`Katsuma Chat running on http://localhost:${PORT}`);
+  console.log('Chat API endpoints:');
+  console.log('  GET  /api/pending-messages - Get messages waiting for response');
+  console.log('  POST /api/agent-response - Submit response from agent');
+  console.log('  POST /api/mark-responded - Mark message as handled');
 });

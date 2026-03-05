@@ -6,11 +6,7 @@
   <title>Chat with Katsuma</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐰</text></svg>">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     
     :root {
       --bg-primary: #0a0a0f;
@@ -54,10 +50,7 @@
       font-size: 20px;
     }
     
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
+    h1 { font-size: 1.25rem; font-weight: 600; }
     
     .status {
       margin-left: auto;
@@ -132,10 +125,7 @@
       align-self: flex-start;
     }
     
-    .typing.active {
-      display: flex;
-      gap: 4px;
-    }
+    .typing.active { display: flex; gap: 4px; }
     
     .typing span {
       width: 8px;
@@ -173,9 +163,7 @@
       transition: border-color 0.2s;
     }
     
-    #message-input:focus {
-      border-color: var(--accent);
-    }
+    #message-input:focus { border-color: var(--accent); }
     
     #send-btn {
       background: var(--accent);
@@ -189,14 +177,8 @@
       transition: background 0.2s;
     }
     
-    #send-btn:hover {
-      background: var(--accent-glow);
-    }
-    
-    #send-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    #send-btn:hover { background: var(--accent-glow); }
+    #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     
     .empty-state {
       text-align: center;
@@ -204,11 +186,7 @@
       color: var(--text-secondary);
     }
     
-    .empty-state h2 {
-      font-size: 1.5rem;
-      margin-bottom: 8px;
-      color: var(--text-primary);
-    }
+    .empty-state h2 { font-size: 1.5rem; margin-bottom: 8px; color: var(--text-primary); }
     
     .clear-btn {
       background: transparent;
@@ -221,10 +199,7 @@
       margin-left: 12px;
     }
     
-    .clear-btn:hover {
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-    }
+    .clear-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
   </style>
 </head>
 <body>
@@ -278,6 +253,18 @@
     // Handle new messages
     socket.on('message', (msg) => {
       appendMessage(msg);
+      hideTyping();
+    });
+    
+    // Handle agent response
+    socket.on('agentResponse', (data) => {
+      const botMessage = {
+        id: Date.now(),
+        type: 'bot',
+        content: data.response,
+        timestamp: new Date().toISOString()
+      };
+      appendMessage(botMessage);
       hideTyping();
     });
     
@@ -363,7 +350,6 @@
       }
     });
     
-    // Focus input on load
     input.focus();
   </script>
 </body>
